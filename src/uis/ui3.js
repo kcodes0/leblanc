@@ -416,17 +416,20 @@ export function ui3(container) {
     el.appendChild(glassTint)
     shardContainer.appendChild(el)
 
-    // Hover effect
+    // Hover effect — only box-shadow and z-index; transform is handled in animation loop
     el.addEventListener('mouseenter', () => {
-      el.style.transition = 'transform 0.4s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.4s ease'
       el.style.boxShadow = `inset 0 0 30px rgba(201,169,110,0.1), 0 0 15px rgba(123,108,183,0.15), 0 0 4px rgba(255,255,255,0.2)`
       el.style.zIndex = '25'
     })
 
     el.addEventListener('mouseleave', () => {
-      el.style.transition = 'transform 1.6s cubic-bezier(0.23, 1, 0.32, 1), opacity 1.2s ease, box-shadow 0.8s ease'
+      el.style.transition = 'box-shadow 0.8s ease'
       el.style.boxShadow = ''
       el.style.zIndex = String(10 + shard.depthLayer)
+      // Reset transition after box-shadow finishes
+      setTimeout(() => {
+        el.style.transition = ''
+      }, 800)
     })
 
     shardElements.push({ el, data: shard })
