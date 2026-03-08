@@ -9,13 +9,13 @@ import { ui7 } from './uis/ui7.js'
 const uis = { 1: ui1, 2: ui2, 3: ui3, 4: ui4, 5: ui5, 6: ui6, 7: ui7 }
 
 const uiLabels = {
-  1: 'portrait',
-  2: 'split',
-  3: 'gallery',
-  4: 'cinema',
-  5: 'redacted',
-  6: 'topography',
-  7: 'after dark'
+  1: 'bloom',
+  2: 'particle',
+  3: 'prism',
+  4: 'terrain',
+  5: 'noise',
+  6: 'vinyl',
+  7: 'infinite'
 }
 
 let currentUI = null
