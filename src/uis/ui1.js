@@ -1,140 +1,311 @@
+import * as THREE from 'three'
+
 export function ui1(container) {
+  // --- Three.js setup ---
+  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false })
+  renderer.setSize(window.innerWidth, window.innerHeight)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.domElement.style.display = 'block'
+  container.innerHTML = ''
+  container.style.position = 'relative'
+  container.style.overflow = 'hidden'
+  container.style.background = '#0a0806'
+  container.style.cursor = 'crosshair'
+  container.appendChild(renderer.domElement)
+
+  const scene = new THREE.Scene()
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+
+  // --- Ripple simulation (ping-pong FBOs) ---
+  const simRes = 512
+  const rtOpts = {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    format: THREE.RGBAFormat,
+    type: THREE.HalfFloatType
+  }
+  let rtA = new THREE.WebGLRenderTarget(simRes, simRes, rtOpts)
+  let rtB = new THREE.WebGLRenderTarget(simRes, simRes, rtOpts)
+
+  const rippleMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uPrev: { value: null },
+      uTexelSize: { value: 1.0 / simRes },
+      uMouse: { value: new THREE.Vector2(-10, -10) },
+      uRadius: { value: 0.02 },
+      uStrength: { value: 0.0 },
+      uDamping: { value: 0.975 }
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      precision highp float;
+      uniform sampler2D uPrev;
+      uniform float uTexelSize;
+      uniform vec2 uMouse;
+      uniform float uRadius;
+      uniform float uStrength;
+      uniform float uDamping;
+      varying vec2 vUv;
+
+      void main() {
+        float h = texture2D(uPrev, vUv).r;
+        float v = texture2D(uPrev, vUv).g;
+
+        float l = texture2D(uPrev, vUv + vec2(-uTexelSize, 0.0)).r;
+        float r = texture2D(uPrev, vUv + vec2( uTexelSize, 0.0)).r;
+        float t = texture2D(uPrev, vUv + vec2(0.0,  uTexelSize)).r;
+        float b = texture2D(uPrev, vUv + vec2(0.0, -uTexelSize)).r;
+
+        // Wave propagation
+        v += (l + r + t + b) * 0.25 - h;
+        v *= uDamping;
+        h += v;
+
+        // Mouse drop
+        float d = distance(vUv, uMouse);
+        h += uStrength * smoothstep(uRadius, 0.0, d);
+
+        gl_FragColor = vec4(h, v, 0.0, 1.0);
+      }
+    `
+  })
+
+  const simScene = new THREE.Scene()
+  const simCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+  simScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), rippleMat))
+
+  // --- Main display shader ---
+  const loader = new THREE.TextureLoader()
+  const imageTex = loader.load('/images/bloom.png', (tex) => {
+    // Update image aspect once loaded
+    const img = tex.image
+    displayMat.uniforms.uImageAspect.value = img.width / img.height
+  })
+  imageTex.minFilter = THREE.LinearFilter
+  imageTex.magFilter = THREE.LinearFilter
+
+  const displayMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTexture: { value: imageTex },
+      uRipple: { value: rtA.texture },
+      uTime: { value: 0 },
+      uScreenAspect: { value: window.innerWidth / window.innerHeight },
+      uImageAspect: { value: 16 / 9 }
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      precision highp float;
+      uniform sampler2D uTexture;
+      uniform sampler2D uRipple;
+      uniform float uTime;
+      uniform float uScreenAspect;
+      uniform float uImageAspect;
+      varying vec2 vUv;
+
+      vec2 coverUV(vec2 uv, float screenAspect, float imageAspect) {
+        vec2 s = vec2(1.0);
+        if (screenAspect > imageAspect) {
+          s.y = screenAspect / imageAspect;
+        } else {
+          s.x = imageAspect / screenAspect;
+        }
+        return (uv - 0.5) / s + 0.5;
+      }
+
+      void main() {
+        // Ripple distortion from heightmap gradient
+        float tx = 1.0 / 512.0;
+        float dx = texture2D(uRipple, vUv + vec2(tx, 0.0)).r
+                 - texture2D(uRipple, vUv - vec2(tx, 0.0)).r;
+        float dy = texture2D(uRipple, vUv + vec2(0.0, tx)).r
+                 - texture2D(uRipple, vUv - vec2(0.0, tx)).r;
+
+        vec2 rippleOffset = vec2(dx, dy) * 0.18;
+
+        // Organic breathing
+        float breathe = sin(uTime * 0.4) * 0.002;
+        vec2 breatheOff = vec2(
+          sin(vUv.y * 4.0 + uTime * 0.3) * breathe,
+          cos(vUv.x * 3.0 + uTime * 0.2) * breathe
+        );
+
+        vec2 baseUV = vUv + rippleOffset + breatheOff;
+
+        // Cover-fit the image
+        vec2 uvR = coverUV(baseUV + length(rippleOffset) * vec2( 0.004, 0.001), uScreenAspect, uImageAspect);
+        vec2 uvG = coverUV(baseUV, uScreenAspect, uImageAspect);
+        vec2 uvB = coverUV(baseUV + length(rippleOffset) * vec2(-0.004,-0.001), uScreenAspect, uImageAspect);
+
+        float r = texture2D(uTexture, uvR).r;
+        float g = texture2D(uTexture, uvG).g;
+        float b = texture2D(uTexture, uvB).b;
+
+        vec3 color = vec3(r, g, b);
+
+        // Subtle warmth push
+        color = pow(color, vec3(0.95, 0.98, 1.05));
+
+        // Soft vignette
+        float vig = smoothstep(1.6, 0.4, length((vUv - 0.5) * vec2(uScreenAspect, 1.0)));
+        color *= mix(0.5, 1.0, vig);
+
+        // Film grain
+        float grain = fract(sin(dot(vUv * uTime * 100.0, vec2(12.9898, 78.233))) * 43758.5453);
+        color += (grain - 0.5) * 0.02;
+
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `
+  })
+
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), displayMat))
+
+  // --- HTML overlay ---
+  const overlay = document.createElement('div')
+  overlay.style.cssText = `
+    position: absolute; inset: 0; z-index: 10; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  `
+
+  const nameEl = document.createElement('h1')
+  nameEl.textContent = 'leblanc'
+  nameEl.style.cssText = `
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 0.2em;
+    text-transform: lowercase;
+    margin: 0;
+    text-shadow: 0 2px 40px rgba(0,0,0,0.3);
+    mix-blend-mode: soft-light;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: ui1FadeIn 3s 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  `
+
+  const sub = document.createElement('p')
+  sub.textContent = 'touch the surface'
+  sub.style.cssText = `
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.25);
+    margin-top: 20px;
+    opacity: 0;
+    animation: ui1FadeIn 2s 2s ease forwards;
+  `
+
+  overlay.appendChild(nameEl)
+  overlay.appendChild(sub)
+  container.appendChild(overlay)
+
+  // Inject keyframe
   const style = document.createElement('style')
   style.textContent = `
-    @keyframes ui1-breathe {
-      0%, 100% { transform: scale(1.0); }
-      50% { transform: scale(1.06); }
-    }
-
-    @keyframes ui1-fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
+    @keyframes ui1FadeIn {
+      from { opacity: 0; transform: translateY(12px); }
       to { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes ui1-lineGrow {
-      from { transform: scaleX(0); }
-      to { transform: scaleX(1); }
-    }
-
-    .ui1-root {
-      position: relative;
-      width: 100%;
-      height: 100vh;
-      overflow: hidden;
-      background: #0a0806;
-      cursor: crosshair;
-    }
-
-    .ui1-image {
-      position: absolute;
-      inset: -5%;
-      width: 110%;
-      height: 110%;
-      background-image: url('/images/bloom.png');
-      background-size: cover;
-      background-position: center;
-      animation: ui1-breathe 25s ease-in-out infinite;
-      will-change: transform;
-    }
-
-    .ui1-wash {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(
-        160deg,
-        rgba(10, 8, 6, 0.15) 0%,
-        transparent 40%,
-        transparent 60%,
-        rgba(10, 8, 6, 0.3) 100%
-      );
-      pointer-events: none;
-      z-index: 2;
-    }
-
-    .ui1-grain {
-      position: absolute;
-      inset: 0;
-      opacity: 0.035;
-      pointer-events: none;
-      z-index: 3;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-      background-size: 256px 256px;
-    }
-
-    .ui1-signature {
-      position: absolute;
-      bottom: 52px;
-      right: 56px;
-      z-index: 10;
-      text-align: right;
-      opacity: 0;
-      animation: ui1-fadeIn 2.5s 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-
-    .ui1-name {
-      font-family: 'Playfair Display', serif;
-      font-weight: 400;
-      font-style: italic;
-      font-size: clamp(13px, 1.8vw, 18px);
-      color: rgba(255, 255, 255, 0.8);
-      letter-spacing: 0.25em;
-      text-transform: lowercase;
-      margin: 0;
-      line-height: 1;
-    }
-
-    .ui1-line {
-      width: 40px;
-      height: 1px;
-      background: rgba(255, 255, 255, 0.3);
-      margin-left: auto;
-      margin-bottom: 16px;
-      transform-origin: right center;
-      transform: scaleX(0);
-      animation: ui1-lineGrow 1.8s 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
   `
   document.head.appendChild(style)
 
-  container.innerHTML = ''
-  const root = document.createElement('div')
-  root.className = 'ui1-root'
-
-  root.innerHTML = `
-    <div class="ui1-image"></div>
-    <div class="ui1-wash"></div>
-    <div class="ui1-grain"></div>
-    <div class="ui1-signature">
-      <div class="ui1-line"></div>
-      <p class="ui1-name">leblanc</p>
-    </div>
-  `
-
-  container.appendChild(root)
-
-  // Subtle parallax on the image
-  const image = root.querySelector('.ui1-image')
-  let mx = 0, my = 0, cx = 0, cy = 0
-  let raf
+  // --- Interaction ---
+  let mouse = { x: -10, y: -10 }
+  let mouseInside = false
+  let clickPulse = 0
 
   function onMove(e) {
-    mx = (e.clientX / window.innerWidth - 0.5) * 2
-    my = (e.clientY / window.innerHeight - 0.5) * 2
+    mouse.x = e.clientX / window.innerWidth
+    mouse.y = 1.0 - e.clientY / window.innerHeight
+    mouseInside = true
+  }
+  function onLeave() {
+    mouseInside = false
+  }
+  function onClick() {
+    clickPulse = 0.4
+  }
+  function onTouch(e) {
+    if (e.touches.length > 0) {
+      mouse.x = e.touches[0].clientX / window.innerWidth
+      mouse.y = 1.0 - e.touches[0].clientY / window.innerHeight
+      mouseInside = true
+      clickPulse = 0.15
+    }
   }
 
-  function tick() {
-    cx += (mx - cx) * 0.03
-    cy += (my - cy) * 0.03
-    image.style.transform = `translate(${cx * -12}px, ${cy * -8}px) scale(1.03)`
-    raf = requestAnimationFrame(tick)
+  container.addEventListener('mousemove', onMove)
+  container.addEventListener('mouseleave', onLeave)
+  container.addEventListener('click', onClick)
+  container.addEventListener('touchmove', onTouch, { passive: true })
+  container.addEventListener('touchstart', onTouch, { passive: true })
+
+  function onResize() {
+    renderer.setSize(window.innerWidth, window.innerHeight)
+    displayMat.uniforms.uScreenAspect.value = window.innerWidth / window.innerHeight
+  }
+  window.addEventListener('resize', onResize)
+
+  // --- Render loop ---
+  let time = 0
+  let raf
+
+  function animate() {
+    raf = requestAnimationFrame(animate)
+    time += 0.016
+
+    // Ripple sim step
+    rippleMat.uniforms.uPrev.value = rtA.texture
+    rippleMat.uniforms.uMouse.value.set(mouse.x, mouse.y)
+
+    let str = mouseInside ? 0.025 : 0.0
+    str += clickPulse
+    clickPulse *= 0.88
+    rippleMat.uniforms.uStrength.value = str
+
+    renderer.setRenderTarget(rtB)
+    renderer.render(simScene, simCam)
+    renderer.setRenderTarget(null)
+
+    // Swap buffers
+    const tmp = rtA; rtA = rtB; rtB = tmp
+
+    // Display
+    displayMat.uniforms.uRipple.value = rtA.texture
+    displayMat.uniforms.uTime.value = time
+    renderer.render(scene, camera)
   }
 
-  window.addEventListener('mousemove', onMove)
-  raf = requestAnimationFrame(tick)
+  animate()
 
+  // --- Cleanup ---
   return function cleanup() {
     cancelAnimationFrame(raf)
-    window.removeEventListener('mousemove', onMove)
+    container.removeEventListener('mousemove', onMove)
+    container.removeEventListener('mouseleave', onLeave)
+    container.removeEventListener('click', onClick)
+    container.removeEventListener('touchmove', onTouch)
+    container.removeEventListener('touchstart', onTouch)
+    window.removeEventListener('resize', onResize)
+    rtA.dispose(); rtB.dispose()
+    rippleMat.dispose(); displayMat.dispose()
+    imageTex.dispose()
+    renderer.dispose()
     if (style.parentNode) style.parentNode.removeChild(style)
     container.innerHTML = ''
   }
