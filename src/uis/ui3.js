@@ -246,6 +246,10 @@ export function ui3(container) {
 
     .ui3-crack-line {
       position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       pointer-events: none;
       opacity: 0;
       transition: opacity 1.8s ease 0.6s;
@@ -611,20 +615,20 @@ export function ui3(container) {
 
   // --- Trigger entrance animation ---
   function startEntrance() {
-    // Start with shards assembled (all at transform: none)
-    shardElements.forEach(({ el }) => {
-      el.style.opacity = '1'
+    // Phase 1: Fade in shards assembled at their positions (staggered)
+    shardElements.forEach(({ el, data }, idx) => {
+      el.style.transition = `opacity 0.6s ease ${idx * 0.02}s`
       el.style.transform = 'translate3d(0, 0, 0) rotate(0deg)'
+      el.style.opacity = String(data.opacity)
     })
 
-    // After a brief pause, shatter them
+    // Phase 2: After assembled and visible, shatter them outward
     setTimeout(() => {
       shardsAssembled = false
 
       shardElements.forEach(({ el, data }, idx) => {
-        el.style.transitionDelay = `${idx * 0.03}s`
-        el.style.transitionDuration = '1.8s'
-        el.style.transitionTimingFunction = 'cubic-bezier(0.23, 1, 0.32, 1)'
+        // Use CSS transition for the initial shatter, then the animation loop takes over
+        el.style.transition = `transform 1.8s cubic-bezier(0.23, 1, 0.32, 1) ${idx * 0.03}s`
 
         const tx = data.shatterX
         const ty = data.shatterY
@@ -633,12 +637,19 @@ export function ui3(container) {
         el.style.transform = `translate3d(${tx}vw, ${ty}vh, 0px) rotate(${rz}deg)`
       })
 
+      // After the CSS transitions finish, remove transition so animation loop has full control
+      setTimeout(() => {
+        shardElements.forEach(({ el }) => {
+          el.style.transition = 'none'
+        })
+      }, 2600)
+
       // Show crack lines after shatter begins
       setTimeout(() => {
         crackLineElements.forEach(cl => cl.classList.add('visible'))
       }, 400)
 
-    }, 600)
+    }, 800)
   }
 
   // Kick off entrance on next frame
