@@ -31,13 +31,13 @@ export function ui1(container) {
       position: fixed;
       inset: 0;
       z-index: 1;
-      cursor: crosshair;
+      pointer-events: none;
     }
 
     .ui1-scroll {
       position: relative;
       z-index: 2;
-      pointer-events: none;
+      cursor: crosshair;
     }
 
     .ui1-hero {
@@ -50,11 +50,11 @@ export function ui1(container) {
     }
 
     .ui1-title {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: clamp(4rem, 12vw, 10rem);
+      font-family: 'Dela Gothic One', sans-serif;
+      font-weight: 400;
+      font-size: clamp(4rem, 13vw, 11rem);
       text-transform: lowercase;
-      letter-spacing: -0.02em;
+      letter-spacing: 0.02em;
       margin: 0;
       line-height: 0.9;
       background: linear-gradient(
