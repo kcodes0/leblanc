@@ -641,13 +641,8 @@ export function ui3(container) {
     }, 600)
   }
 
-  // Fade in shards with a slight stagger
+  // Kick off entrance on next frame
   requestAnimationFrame(() => {
-    shardElements.forEach(({ el }, idx) => {
-      setTimeout(() => {
-        el.style.opacity = String(shardElements[idx].data.opacity)
-      }, idx * 20)
-    })
     startEntrance()
   })
 
