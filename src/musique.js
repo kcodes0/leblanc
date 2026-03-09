@@ -37,10 +37,12 @@ export function musique(container) {
       opacity:0; pointer-events:none;
       transition: opacity 0.15s ease;
     }
-    .mq-section.visible { opacity:1; pointer-events:auto; }
+    .mq-section.visible { opacity:1; }
+    .mq-section.visible .mq-link,
+    .mq-section.visible .mq-links-wrap { pointer-events:auto; }
 
     .mq-section--musique .mq-brand {
-      font-family: 'Dela Gothic One', sans-serif;
+      font-family: 'Climate Crisis', sans-serif;
       font-size: clamp(3rem, 14vw, 10rem);
       color: #fff;
       letter-spacing: -0.02em;
@@ -73,7 +75,9 @@ export function musique(container) {
       opacity:0; pointer-events:none;
       transition: opacity 0.2s ease;
     }
-    .mq-card-section.visible { opacity:1; pointer-events:auto; }
+    .mq-card-section.visible { opacity:1; }
+    .mq-card-section.visible .mq-link,
+    .mq-card-section.visible .mq-links-wrap { pointer-events:auto; }
 
     .mq-logo { max-width: 55vw; max-height: 35vh; object-fit: contain; filter: drop-shadow(0 0 30px var(--glow)); }
     .mq-logo-label {
@@ -114,7 +118,7 @@ export function musique(container) {
     }
 
     .mq-section-title {
-      font-family: 'Dela Gothic One', sans-serif;
+      font-family: 'Climate Crisis', sans-serif;
       font-size: clamp(1rem, 2.5vw, 1.4rem);
       color: rgba(255,255,255,0.6);
       margin-bottom: 8px; letter-spacing: 0.05em;
@@ -127,7 +131,7 @@ export function musique(container) {
 
     /* Socials closing */
     .mq-closing {
-      font-family: 'Dela Gothic One', sans-serif;
+      font-family: 'Climate Crisis', sans-serif;
       font-size: clamp(1.5rem, 5vw, 3rem);
       color: #fff;
       text-shadow: 2px 0 #8b5cf6, -2px 0 #00e5cc;
