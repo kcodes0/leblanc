@@ -18,24 +18,25 @@ export function musique(container) {
   container.style.height = '100%'
   container.style.background = '#000'
 
+  // ─── RANDOM GLITCH PARAMS (unique per page load) ───
+  const GLITCH_SEED = Math.random() * 1000
+  const GLITCH_SLICES = Math.floor(Math.random() * 15) + 8
+  const GLITCH_RGB_ANGLE = Math.random() * Math.PI * 2
+
   // ─── STYLES ────────────────────────────────────────
   const style = document.createElement('style')
   style.textContent = `
-    @keyframes mq-fadeUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
     @keyframes mq-glitchFlicker { 0%,92%,94%,96%,100% { opacity:1; } 93%,95% { opacity:0.7; transform:translate(-2px,1px); } }
-    @keyframes mq-scanMove { from { background-position:0 0; } to { background-position:0 100%; } }
 
     .mq-canvas-wrap { position:fixed; inset:0; z-index:1; pointer-events:none; }
-
     .mq-scroll { position:relative; z-index:2; }
-    .mq-spacer { height:7000px; pointer-events:none; }
+    .mq-spacer { height:10000px; pointer-events:none; }
 
-    /* Overlay sections */
     .mq-section {
       position:fixed; inset:0; z-index:10;
       display:flex; flex-direction:column; align-items:center; justify-content:center;
       opacity:0; pointer-events:none;
-      transition: opacity 0.15s ease;
+      transition: opacity 0.2s ease;
     }
     .mq-section.visible { opacity:1; }
     .mq-section.visible .mq-link,
@@ -68,7 +69,6 @@ export function musique(container) {
       color: rgba(0,229,204,0.35); margin-top: 24px;
     }
 
-    /* Card sections */
     .mq-card-section {
       position:fixed; inset:0; z-index:10;
       display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -79,14 +79,17 @@ export function musique(container) {
     .mq-card-section.visible .mq-link,
     .mq-card-section.visible .mq-links-wrap { pointer-events:auto; }
 
-    .mq-logo { max-width: 55vw; max-height: 35vh; object-fit: contain; filter: drop-shadow(0 0 30px var(--glow)); }
+    .mq-logo {
+      max-width: 85vw;
+      max-height: 65vh;
+      object-fit: contain;
+    }
     .mq-logo-label {
       font-family: 'JetBrains Mono', monospace;
       font-size: 11px; letter-spacing: 5px; text-transform: uppercase;
       margin-top: 20px;
     }
 
-    /* Links */
     .mq-links-wrap {
       display:flex; flex-direction:column; gap:10px;
       width: 100%; max-width: 380px; padding: 0 24px;
@@ -129,7 +132,6 @@ export function musique(container) {
       text-transform: uppercase; margin-bottom: 32px;
     }
 
-    /* Socials closing */
     .mq-closing {
       font-family: 'Climate Crisis', sans-serif;
       font-size: clamp(1.5rem, 5vw, 3rem);
@@ -143,7 +145,6 @@ export function musique(container) {
       text-transform:uppercase; margin-top:40px;
     }
 
-    /* Scroll prompt */
     .mq-scroll-prompt {
       position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
       z-index:20; font-family:'JetBrains Mono',monospace;
@@ -168,11 +169,9 @@ export function musique(container) {
 
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(0x000000)
-  scene.fog = new THREE.FogExp2(0x000000, 0.012)
+  scene.fog = new THREE.FogExp2(0x000000, 0.008)
 
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300)
-
-  // Render target for post-processing
   const rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight)
 
   // ─── SPLINE PATH ───────────────────────────────────
@@ -190,70 +189,98 @@ export function musique(container) {
     new THREE.Vector3(0, 0, -215),
   ])
 
-  // Card definitions: t position, swivel range, color zone
+  // Card definitions
   const cardDefs = [
     { t: 0.07, id: 'musique',         swivelRange: 0.06 },
-    { t: 0.22, id: 'northstar',       swivelRange: 0.06 },
+    { t: 0.22, id: 'northstar',       swivelRange: 0.08 },
     { t: 0.37, id: 'northstar-links', swivelRange: 0.06 },
-    { t: 0.55, id: 'leblanc',         swivelRange: 0.06 },
+    { t: 0.55, id: 'leblanc',         swivelRange: 0.08 },
     { t: 0.70, id: 'leblanc-links',   swivelRange: 0.06 },
     { t: 0.87, id: 'socials',         swivelRange: 0.06 },
   ]
 
-  // ─── FLOATING DEBRIS ──────────────────────────────
-  const debrisGeo = new THREE.BufferGeometry()
-  const debrisCount = 300
-  const debrisPos = new Float32Array(debrisCount * 3)
-  const debrisSizes = new Float32Array(debrisCount)
-  for (let i = 0; i < debrisCount; i++) {
-    const t = Math.random()
-    const p = curve.getPointAt(t)
-    debrisPos[i * 3] = p.x + (Math.random() - 0.5) * 20
-    debrisPos[i * 3 + 1] = p.y + (Math.random() - 0.5) * 14
-    debrisPos[i * 3 + 2] = p.z + (Math.random() - 0.5) * 10
-    debrisSizes[i] = Math.random() * 3 + 0.5
-  }
-  debrisGeo.setAttribute('position', new THREE.BufferAttribute(debrisPos, 3))
-  debrisGeo.setAttribute('aSize', new THREE.BufferAttribute(debrisSizes, 1))
-
-  const debrisMat = new THREE.ShaderMaterial({
+  // ─── WIREFRAME TUNNEL (2010 Tron vibes) ────────────
+  const tubeGeo = new THREE.TubeGeometry(curve, 200, 14, 12, false)
+  const tubeMat = new THREE.ShaderMaterial({
     uniforms: {
-      uTime: { value: 0 },
       uColor1: { value: new THREE.Color(0x00e5cc) },
-      uColor2: { value: new THREE.Color(0x0aff6a) },
+      uColor2: { value: new THREE.Color(0x8b5cf6) },
+      uTime: { value: 0 },
     },
     vertexShader: /* glsl */`
-      attribute float aSize;
-      uniform float uTime;
-      varying float vAlpha;
+      varying float vZFrac;
+      varying float vDist;
       void main() {
-        vec3 pos = position;
-        pos.x += sin(uTime * 0.3 + position.z * 0.1) * 0.5;
-        pos.y += cos(uTime * 0.2 + position.x * 0.15) * 0.4;
-        vec4 mv = modelViewMatrix * vec4(pos, 1.0);
-        gl_PointSize = aSize * (80.0 / -mv.z);
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vZFrac = clamp(-worldPos.z / 215.0, 0.0, 1.0);
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vDist = -mv.z;
         gl_Position = projectionMatrix * mv;
-        vAlpha = smoothstep(200.0, 20.0, -mv.z) * 0.4;
       }
     `,
     fragmentShader: /* glsl */`
-      uniform vec3 uColor1;
-      uniform vec3 uColor2;
+      uniform vec3 uColor1, uColor2;
       uniform float uTime;
-      varying float vAlpha;
+      varying float vZFrac;
+      varying float vDist;
       void main() {
-        float d = length(gl_PointCoord - 0.5);
-        if (d > 0.5) discard;
-        float alpha = smoothstep(0.5, 0.1, d) * vAlpha;
-        vec3 col = mix(uColor1, uColor2, sin(uTime * 0.5 + gl_PointCoord.x * 3.0) * 0.5 + 0.5);
+        vec3 col = mix(uColor1, uColor2, vZFrac);
+        float alpha = smoothstep(120.0, 3.0, vDist) * 0.1;
+        alpha *= 0.6 + 0.4 * sin(uTime * 0.4 + vZFrac * 12.0);
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+    wireframe: true,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  })
+  scene.add(new THREE.Mesh(tubeGeo, tubeMat))
+
+  // ─── GRID FLOOR (classic 2010 perspective grid) ────
+  const gridGeo = new THREE.PlaneGeometry(200, 300, 1, 1)
+  const gridMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uColor1: { value: new THREE.Color(0x00e5cc) },
+      uColor2: { value: new THREE.Color(0x8b5cf6) },
+      uTime: { value: 0 },
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vWorldPos;
+      varying float vDist;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vDist = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform vec3 uColor1, uColor2;
+      uniform float uTime;
+      varying vec3 vWorldPos;
+      varying float vDist;
+      void main() {
+        vec2 grid = abs(fract(vWorldPos.xz * 0.2) - 0.5);
+        float line = min(grid.x, grid.y);
+        float gridAlpha = 1.0 - smoothstep(0.0, 0.025, line);
+        float zFrac = clamp(-vWorldPos.z / 215.0, 0.0, 1.0);
+        vec3 col = mix(uColor1, uColor2, zFrac);
+        float distFade = smoothstep(100.0, 5.0, vDist);
+        float pulse = 0.7 + 0.3 * sin(uTime * 0.3 + vWorldPos.z * 0.04);
+        float alpha = gridAlpha * distFade * pulse * 0.15;
         gl_FragColor = vec4(col, alpha);
       }
     `,
     transparent: true,
+    side: THREE.DoubleSide,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
   })
-  scene.add(new THREE.Points(debrisGeo, debrisMat))
+  const gridMesh = new THREE.Mesh(gridGeo, gridMat)
+  gridMesh.rotation.x = -Math.PI / 2
+  gridMesh.position.set(0, -10, -107.5)
+  scene.add(gridMesh)
 
   // ─── POST-PROCESSING SHADER ───────────────────────
   const postScene = new THREE.Scene()
@@ -263,62 +290,87 @@ export function musique(container) {
       tDiffuse: { value: rt.texture },
       uTime: { value: 0 },
       uRes: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+      uGlitchIntensity: { value: 0 },
+      uGlitchSeed: { value: GLITCH_SEED },
+      uGlitchSlices: { value: GLITCH_SLICES },
+      uGlitchAngle: { value: GLITCH_RGB_ANGLE },
     },
     vertexShader: /* glsl */`
       varying vec2 vUv;
-      void main() { vUv = uv; gl_Position = vec4(position,1.0); }
+      void main() { vUv = uv; gl_Position = vec4(position, 1.0); }
     `,
     fragmentShader: /* glsl */`
       precision highp float;
       uniform sampler2D tDiffuse;
       uniform float uTime;
       uniform vec2 uRes;
+      uniform float uGlitchIntensity;
+      uniform float uGlitchSeed;
+      uniform float uGlitchSlices;
+      uniform float uGlitchAngle;
       varying vec2 vUv;
 
       float rand(vec2 co) { return fract(sin(dot(co, vec2(12.9898,78.233))) * 43758.5453); }
+      float rand2(vec2 co) { return fract(sin(dot(co, vec2(63.7264,10.873))) * 27583.2917); }
 
       void main() {
         vec2 uv = vUv;
+        float gi = uGlitchIntensity;
 
-        // Glitch: random horizontal scanline shifts
+        // ─── TRANSITION GLITCH ───
+        if (gi > 0.01) {
+          float blockY = floor(uv.y * uGlitchSlices + uGlitchSeed);
+          float blockRand = rand(vec2(blockY, uGlitchSeed));
+          float blockActive = step(1.0 - gi * 0.7, blockRand);
+          uv.x += blockActive * (rand(vec2(blockY * 7.0, uGlitchSeed + floor(uTime * 20.0))) - 0.5) * gi * 0.25;
+
+          float vBlock = floor(uv.x * 6.0 + uGlitchSeed * 3.0);
+          float vBlockActive = step(1.0 - gi * 0.3, rand2(vec2(vBlock, uGlitchSeed)));
+          uv.y += vBlockActive * (rand2(vec2(vBlock * 5.0, floor(uTime * 15.0))) - 0.5) * gi * 0.1;
+        }
+
+        // ─── AMBIENT GLITCH ───
         float glitchSeed = floor(uTime * 4.0);
         float lineRand = rand(vec2(floor(uv.y * 80.0), glitchSeed));
         float glitchLine = step(0.985, lineRand);
         uv.x += glitchLine * (rand(vec2(glitchSeed, uv.y * 100.0)) - 0.5) * 0.06;
 
-        // Occasional big glitch block
         float bigGlitch = step(0.93, sin(uTime * 0.6 + 1.7)) * step(0.4, rand(vec2(glitchSeed)));
-        float blockY = step(0.6, rand(vec2(floor(uv.y * 12.0), glitchSeed * 3.0)));
-        uv.x += bigGlitch * blockY * (rand(vec2(glitchSeed * 7.0, uv.y)) - 0.5) * 0.12;
+        float blockY2 = step(0.6, rand(vec2(floor(uv.y * 12.0), glitchSeed * 3.0)));
+        uv.x += bigGlitch * blockY2 * (rand(vec2(glitchSeed * 7.0, uv.y)) - 0.5) * 0.12;
 
-        // Chromatic aberration
-        float abr = 0.0025 + bigGlitch * 0.008;
-        float r = texture2D(tDiffuse, uv + vec2(abr, 0.0)).r;
+        // ─── CHROMATIC ABERRATION ───
+        float baseAbr = 0.0025 + bigGlitch * 0.008;
+        vec2 rgbDir = vec2(cos(uGlitchAngle), sin(uGlitchAngle));
+        float transAbr = gi * 0.035;
+
+        float r = texture2D(tDiffuse, uv + vec2(baseAbr, 0.0) + rgbDir * transAbr).r;
         float g = texture2D(tDiffuse, uv).g;
-        float b = texture2D(tDiffuse, uv - vec2(abr, abr * 0.5)).b;
+        float b = texture2D(tDiffuse, uv - vec2(baseAbr, baseAbr * 0.5) - rgbDir * transAbr).b;
         vec3 color = vec3(r, g, b);
 
-        // Deepfried: oversaturate
+        // ─── DEEPFRIED ───
         float gray = dot(color, vec3(0.299, 0.587, 0.114));
         color = mix(vec3(gray), color, 1.45);
-
-        // Crush contrast
         color = smoothstep(0.04, 0.94, color);
 
-        // Heavy grain
         float grain = rand(uv * 500.0 + fract(uTime * 17.0));
-        color += (grain - 0.5) * 0.1;
+        color += (grain - 0.5) * (0.1 + gi * 0.12);
 
-        // Subtle posterize
         color = floor(color * 18.0) / 18.0;
 
-        // Scanlines
         float scan = sin(uv.y * uRes.y * 1.2 + uTime * 2.0) * 0.03;
         color -= scan;
 
-        // Vignette
         float vig = smoothstep(1.5, 0.4, length((uv - 0.5) * vec2(uRes.x/uRes.y, 1.0)));
         color *= mix(0.15, 1.0, vig);
+
+        // Transition flash at peak
+        if (gi > 0.6) {
+          float flash = (gi - 0.6) / 0.4;
+          float fr = rand(vec2(floor(uTime * 25.0), uGlitchSeed));
+          color = mix(color, vec3(fr > 0.5 ? 1.0 : 0.0), flash * 0.35);
+        }
 
         gl_FragColor = vec4(color, 1.0);
       }
@@ -326,28 +378,59 @@ export function musique(container) {
   })
   postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat))
 
-  // ─── SCROLL CONTAINER + HTML OVERLAYS ─────────────
+  // ─── GLITCH OVERLAY (2D canvas over HTML) ──────────
+  const glitchCanvas = document.createElement('canvas')
+  glitchCanvas.style.cssText = 'position:fixed;inset:0;z-index:50;pointer-events:none;'
+  glitchCanvas.width = window.innerWidth
+  glitchCanvas.height = window.innerHeight
+  container.appendChild(glitchCanvas)
+  const glitchCtx = glitchCanvas.getContext('2d')
+
+  function drawGlitchOverlay(gi) {
+    glitchCtx.clearRect(0, 0, glitchCanvas.width, glitchCanvas.height)
+    if (gi < 0.05) return
+
+    const w = glitchCanvas.width
+    const h = glitchCanvas.height
+    const numBars = Math.floor(gi * GLITCH_SLICES * 1.5)
+
+    for (let i = 0; i < numBars; i++) {
+      const y = Math.random() * h
+      const barH = Math.random() * h * 0.04 + 1
+      const x = (Math.random() - 0.5) * w * 0.4 * gi
+      const isTeal = Math.random() > 0.5
+      const alpha = Math.random() * 0.3 * gi
+      glitchCtx.fillStyle = isTeal
+        ? `rgba(0,229,204,${alpha})`
+        : `rgba(139,92,246,${alpha})`
+      glitchCtx.fillRect(x, y, w + Math.abs(x), barH)
+    }
+
+    if (gi > 0.7) {
+      const flash = (gi - 0.7) / 0.3
+      glitchCtx.fillStyle = `rgba(255,255,255,${flash * 0.3})`
+      glitchCtx.fillRect(0, 0, w, h)
+    }
+  }
+
+  // ─── SCROLL CONTAINER + HTML OVERLAYS ──────────────
   const scrollWrap = document.createElement('div')
   scrollWrap.className = 'mq-scroll'
-
   const spacer = document.createElement('div')
   spacer.className = 'mq-spacer'
   scrollWrap.appendChild(spacer)
   container.appendChild(scrollWrap)
 
-  // Scroll prompt
   const prompt = document.createElement('div')
   prompt.className = 'mq-scroll-prompt'
   prompt.textContent = 'scroll to enter'
   container.appendChild(prompt)
 
-  // Create overlay sections
-  function makeSection(id, html, cssVars = '') {
+  function makeSection(id, html) {
     const el = document.createElement('div')
     el.className = id.includes('link') || id === 'socials' ? 'mq-card-section' : 'mq-section'
     if (id === 'musique') el.classList.add('mq-section--musique')
     el.dataset.id = id
-    el.style.cssText = cssVars
     el.innerHTML = html
     container.appendChild(el)
     return el
@@ -359,7 +442,7 @@ export function musique(container) {
       <div class="mq-sub">genreless</div>
     `),
     northstar: makeSection('northstar', `
-      <img class="mq-logo" src="/images/northstar.png" alt="northstar" style="--glow:rgba(0,229,204,0.4);">
+      <img class="mq-logo" src="/images/northstar.png" alt="northstar">
       <div class="mq-logo-label" style="color:rgba(0,229,204,0.5);">the band</div>
     `),
     'northstar-links': makeSection('northstar-links', `
@@ -376,7 +459,7 @@ export function musique(container) {
       </div>
     `),
     leblanc: makeSection('leblanc', `
-      <img class="mq-logo" src="/images/leblanc.png" alt="leblanc" style="--glow:rgba(139,92,246,0.4);">
+      <img class="mq-logo" src="/images/leblanc.png" alt="leblanc">
       <div class="mq-logo-label" style="color:rgba(139,92,246,0.5);">solo</div>
     `),
     'leblanc-links': makeSection('leblanc-links', `
@@ -410,27 +493,69 @@ export function musique(container) {
     `),
   }
 
-  // ─── SCROLL → CAMERA MAPPING ──────────────────────
-  let currentT = 0
-  let targetT = 0
+  // ─── SCROLL REMAPPING (stall zones at logos) ───────
+  const scrollKeys = [
+    [0.00, 0.000],
+    [0.10, 0.070],
+    [0.17, 0.180],
+    [0.20, 0.220],   // northstar entry
+    [0.33, 0.220],   // northstar stall
+    [0.36, 0.280],   // northstar exit
+    [0.43, 0.370],
+    [0.49, 0.480],
+    [0.52, 0.550],   // leblanc entry
+    [0.65, 0.550],   // leblanc stall
+    [0.68, 0.610],   // leblanc exit
+    [0.75, 0.700],
+    [0.86, 0.870],
+    [1.00, 1.000],
+  ]
 
-  // Color zones: northstar (teal/green) → leblanc (purple)
-  const colNorthstar1 = new THREE.Color(0x00e5cc)
-  const colNorthstar2 = new THREE.Color(0x0aff6a)
-  const colLeblanc1 = new THREE.Color(0x8b5cf6)
-  const colLeblanc2 = new THREE.Color(0x6d28d9)
+  function scrollToT(s) {
+    for (let i = 0; i < scrollKeys.length - 1; i++) {
+      if (s <= scrollKeys[i + 1][0]) {
+        const range = scrollKeys[i + 1][0] - scrollKeys[i][0]
+        if (range < 0.0001) return scrollKeys[i][1]
+        const frac = (s - scrollKeys[i][0]) / range
+        return scrollKeys[i][1] + frac * (scrollKeys[i + 1][1] - scrollKeys[i][1])
+      }
+    }
+    return 1.0
+  }
+
+  // ─── GLITCH INTENSITY (bumps at stall boundaries) ─
+  function getGlitchIntensity(s) {
+    const transitions = [
+      { center: 0.19, width: 0.025 },
+      { center: 0.345, width: 0.025 },
+      { center: 0.51, width: 0.025 },
+      { center: 0.665, width: 0.025 },
+    ]
+    let intensity = 0
+    for (const tr of transitions) {
+      const d = Math.abs(s - tr.center) / tr.width
+      if (d < 1) {
+        intensity = Math.max(intensity, Math.pow(1 - d, 0.6))
+      }
+    }
+    return intensity
+  }
+
+  // ─── SCROLL STATE ──────────────────────────────────
+  let scrollFraction = 0
+  let targetScrollFraction = 0
   const fogColorTemp = new THREE.Color()
 
   function onScroll() {
     const maxScroll = container.scrollHeight - container.clientHeight
     if (maxScroll > 0) {
-      targetT = container.scrollTop / maxScroll
+      targetScrollFraction = container.scrollTop / maxScroll
     }
     prompt.classList.toggle('hidden', container.scrollTop > 50)
   }
   container.addEventListener('scroll', onScroll, { passive: true })
 
-  // ─── RESIZE ───────────────────────────────────────
+  // ─── RESIZE ────────────────────────────────────────
   function onResize() {
     const w = window.innerWidth, h = window.innerHeight
     renderer.setSize(w, h)
@@ -438,64 +563,56 @@ export function musique(container) {
     camera.aspect = w / h
     camera.updateProjectionMatrix()
     postMat.uniforms.uRes.value.set(w, h)
+    glitchCanvas.width = w
+    glitchCanvas.height = h
   }
   window.addEventListener('resize', onResize)
 
-  // ─── ANIMATION LOOP ───────────────────────────────
+  // ─── ANIMATION LOOP ────────────────────────────────
   let time = 0
   let raf
   const lookTarget = new THREE.Vector3()
-  const tempTangent = new THREE.Vector3()
   const tempCardPos = new THREE.Vector3()
 
   function animate() {
     raf = requestAnimationFrame(animate)
     time += 0.016
 
-    // Smooth scroll interpolation
-    currentT += (targetT - currentT) * 0.04
-    const t = Math.max(0.001, Math.min(0.999, currentT))
+    // Smooth scroll
+    scrollFraction += (targetScrollFraction - scrollFraction) * 0.04
+    const cameraT = scrollToT(scrollFraction)
+    const t = Math.max(0.001, Math.min(0.999, cameraT))
 
-    // Camera position along curve
+    // Camera along curve
     const pos = curve.getPointAt(t)
     camera.position.copy(pos)
 
-    // Default look direction: along tangent
     const tangent = curve.getTangentAt(t)
     lookTarget.copy(pos).add(tangent.multiplyScalar(5))
 
-    // Check card proximity → swivel
+    // Card swivel
     let activeSection = null
     for (const card of cardDefs) {
       const dist = Math.abs(t - card.t)
       if (dist < card.swivelRange) {
-        // Blend toward card position (offset perpendicular to path)
         const cardPoint = curve.getPointAt(card.t)
         const cardTangent = curve.getTangentAt(card.t)
         const up = new THREE.Vector3(0, 1, 0)
         const right = new THREE.Vector3().crossVectors(cardTangent, up).normalize()
-
         tempCardPos.copy(cardPoint).add(right.multiplyScalar(6))
-
         const blend = 1.0 - (dist / card.swivelRange)
-        const smoothBlend = blend * blend * (3 - 2 * blend) // smoothstep
-
+        const smoothBlend = blend * blend * (3 - 2 * blend)
         lookTarget.lerp(tempCardPos, smoothBlend * 0.8)
         activeSection = card.id
       }
     }
-
     camera.lookAt(lookTarget)
 
-    // Update debris colors based on zone
+    // Zone color blend
     const zoneBlend = Math.min(1, Math.max(0, (t - 0.35) / 0.3))
-    const c1 = colNorthstar1.clone().lerp(colLeblanc1, zoneBlend)
-    const c2 = colNorthstar2.clone().lerp(colLeblanc2, zoneBlend)
-    debrisMat.uniforms.uColor1.value.copy(c1)
-    debrisMat.uniforms.uColor2.value.copy(c2)
-    debrisMat.uniforms.uTime.value = time
+    tubeMat.uniforms.uTime.value = time
+    gridMat.uniforms.uTime.value = time
 
-    // Fog subtle tint
     fogColorTemp.setRGB(
       0.01 + zoneBlend * 0.02,
       0.01 - zoneBlend * 0.005,
@@ -504,31 +621,51 @@ export function musique(container) {
     scene.fog.color.copy(fogColorTemp)
     scene.background.copy(fogColorTemp)
 
-    // Show/hide HTML overlay sections
+    // Show/hide overlays
     for (const key in sections) {
       sections[key].classList.toggle('visible', key === activeSection)
     }
 
-    // Render scene to RT
+    // Glitch system
+    const gi = getGlitchIntensity(scrollFraction)
+    postMat.uniforms.uGlitchIntensity.value = gi
+
+    // CSS jitter on active section during glitch
+    if (gi > 0.01 && activeSection) {
+      const sect = sections[activeSection]
+      const rx = (Math.random() - 0.5) * 30 * gi
+      const ry = (Math.random() - 0.5) * 15 * gi
+      const skew = (Math.random() - 0.5) * 8 * gi
+      sect.style.transform = `translate(${rx}px, ${ry}px) skewX(${skew}deg)`
+    } else {
+      for (const key in sections) {
+        sections[key].style.transform = ''
+      }
+    }
+
+    // 2D glitch overlay
+    drawGlitchOverlay(gi)
+
+    // Render
     postMat.uniforms.uTime.value = time
     renderer.setRenderTarget(rt)
     renderer.render(scene, camera)
     renderer.setRenderTarget(null)
-
-    // Render post-processing
     renderer.render(postScene, postCam)
   }
 
   animate()
 
-  // ─── CLEANUP ──────────────────────────────────────
+  // ─── CLEANUP ───────────────────────────────────────
   return function cleanup() {
     cancelAnimationFrame(raf)
     container.removeEventListener('scroll', onScroll)
     window.removeEventListener('resize', onResize)
     rt.dispose()
-    debrisGeo.dispose()
-    debrisMat.dispose()
+    tubeGeo.dispose()
+    tubeMat.dispose()
+    gridGeo.dispose()
+    gridMat.dispose()
     postMat.dispose()
     renderer.dispose()
     if (style.parentNode) style.parentNode.removeChild(style)
