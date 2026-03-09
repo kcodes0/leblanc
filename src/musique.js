@@ -20,14 +20,12 @@ export function musique(container) {
 
   // ─── RANDOM GLITCH PARAMS (unique per page load) ───
   const GLITCH_SEED = Math.random() * 1000
-  const GLITCH_SLICES = Math.floor(Math.random() * 15) + 8
+  const GLITCH_SLICES = Math.floor(Math.random() * 10) + 6
   const GLITCH_RGB_ANGLE = Math.random() * Math.PI * 2
 
   // ─── STYLES ────────────────────────────────────────
   const style = document.createElement('style')
   style.textContent = `
-    @keyframes mq-glitchFlicker { 0%,92%,94%,96%,100% { opacity:1; } 93%,95% { opacity:0.7; transform:translate(-2px,1px); } }
-
     .mq-canvas-wrap { position:fixed; inset:0; z-index:1; pointer-events:none; }
     .mq-scroll { position:relative; z-index:2; }
     .mq-spacer { height:10000px; pointer-events:none; }
@@ -42,33 +40,6 @@ export function musique(container) {
     .mq-section.visible .mq-link,
     .mq-section.visible .mq-links-wrap { pointer-events:auto; }
 
-    .mq-section--musique .mq-brand {
-      font-family: 'Climate Crisis', sans-serif;
-      font-size: clamp(3rem, 14vw, 10rem);
-      color: #fff;
-      letter-spacing: -0.02em;
-      line-height: 0.9;
-      animation: mq-glitchFlicker 4s infinite;
-      text-shadow:
-        3px 0 #00e5cc, -3px 0 #0aff6a,
-        0 0 40px rgba(0,229,204,0.3),
-        0 0 80px rgba(10,255,106,0.15);
-      position: relative;
-    }
-    .mq-section--musique .mq-brand::after {
-      content: 'musique.';
-      position: absolute; inset: 0;
-      color: transparent;
-      text-shadow: -4px 2px #0aff6a44, 5px -1px #00e5cc44;
-      clip-path: polygon(0 45%, 100% 42%, 100% 55%, 0 58%);
-      animation: mq-glitchFlicker 2.3s 0.1s infinite reverse;
-    }
-    .mq-section--musique .mq-sub {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px; letter-spacing: 6px; text-transform: uppercase;
-      color: rgba(0,229,204,0.35); margin-top: 24px;
-    }
-
     .mq-card-section {
       position:fixed; inset:0; z-index:10;
       display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -80,14 +51,21 @@ export function musique(container) {
     .mq-card-section.visible .mq-links-wrap { pointer-events:auto; }
 
     .mq-logo {
-      max-width: 85vw;
-      max-height: 65vh;
+      max-width: 95vw;
+      max-height: 80vh;
       object-fit: contain;
     }
     .mq-logo-label {
       font-family: 'JetBrains Mono', monospace;
       font-size: 11px; letter-spacing: 5px; text-transform: uppercase;
       margin-top: 20px;
+    }
+
+    .mq-links-logo {
+      max-width: 35vw;
+      max-height: 10vh;
+      object-fit: contain;
+      margin-bottom: 20px;
     }
 
     .mq-links-wrap {
@@ -120,12 +98,6 @@ export function musique(container) {
       transition: all 0.3s;
     }
 
-    .mq-section-title {
-      font-family: 'Climate Crisis', sans-serif;
-      font-size: clamp(1rem, 2.5vw, 1.4rem);
-      color: rgba(255,255,255,0.6);
-      margin-bottom: 8px; letter-spacing: 0.05em;
-    }
     .mq-section-sub {
       font-family: 'JetBrains Mono', monospace;
       font-size: 9px; letter-spacing: 4px; color: rgba(255,255,255,0.15);
@@ -153,6 +125,12 @@ export function musique(container) {
       transition: opacity 0.5s;
     }
     .mq-scroll-prompt.hidden { opacity:0; }
+
+    .mq-loop-fade {
+      position:fixed; inset:0; z-index:60;
+      background:#000; opacity:0; pointer-events:none;
+      transition: opacity 0.4s ease;
+    }
   `
   document.head.appendChild(style)
 
@@ -199,7 +177,7 @@ export function musique(container) {
     { t: 0.87, id: 'socials',         swivelRange: 0.06 },
   ]
 
-  // ─── WIREFRAME TUNNEL (2010 Tron vibes) ────────────
+  // ─── WIREFRAME TUNNEL ─────────────────────────────
   const tubeGeo = new THREE.TubeGeometry(curve, 200, 14, 12, false)
   const tubeMat = new THREE.ShaderMaterial({
     uniforms: {
@@ -237,7 +215,7 @@ export function musique(container) {
   })
   scene.add(new THREE.Mesh(tubeGeo, tubeMat))
 
-  // ─── GRID FLOOR (classic 2010 perspective grid) ────
+  // ─── GRID FLOOR ───────────────────────────────────
   const gridGeo = new THREE.PlaneGeometry(200, 300, 1, 1)
   const gridMat = new THREE.ShaderMaterial({
     uniforms: {
@@ -317,16 +295,16 @@ export function musique(container) {
         vec2 uv = vUv;
         float gi = uGlitchIntensity;
 
-        // ─── TRANSITION GLITCH ───
+        // ─── TRANSITION GLITCH (gentle) ───
         if (gi > 0.01) {
           float blockY = floor(uv.y * uGlitchSlices + uGlitchSeed);
           float blockRand = rand(vec2(blockY, uGlitchSeed));
-          float blockActive = step(1.0 - gi * 0.7, blockRand);
-          uv.x += blockActive * (rand(vec2(blockY * 7.0, uGlitchSeed + floor(uTime * 20.0))) - 0.5) * gi * 0.25;
+          float blockActive = step(1.0 - gi * 0.4, blockRand);
+          uv.x += blockActive * (rand(vec2(blockY * 7.0, uGlitchSeed + floor(uTime * 8.0))) - 0.5) * gi * 0.08;
 
           float vBlock = floor(uv.x * 6.0 + uGlitchSeed * 3.0);
-          float vBlockActive = step(1.0 - gi * 0.3, rand2(vec2(vBlock, uGlitchSeed)));
-          uv.y += vBlockActive * (rand2(vec2(vBlock * 5.0, floor(uTime * 15.0))) - 0.5) * gi * 0.1;
+          float vBlockActive = step(1.0 - gi * 0.15, rand2(vec2(vBlock, uGlitchSeed)));
+          uv.y += vBlockActive * (rand2(vec2(vBlock * 5.0, floor(uTime * 6.0))) - 0.5) * gi * 0.03;
         }
 
         // ─── AMBIENT GLITCH ───
@@ -342,7 +320,7 @@ export function musique(container) {
         // ─── CHROMATIC ABERRATION ───
         float baseAbr = 0.0025 + bigGlitch * 0.008;
         vec2 rgbDir = vec2(cos(uGlitchAngle), sin(uGlitchAngle));
-        float transAbr = gi * 0.035;
+        float transAbr = gi * 0.012;
 
         float r = texture2D(tDiffuse, uv + vec2(baseAbr, 0.0) + rgbDir * transAbr).r;
         float g = texture2D(tDiffuse, uv).g;
@@ -355,7 +333,7 @@ export function musique(container) {
         color = smoothstep(0.04, 0.94, color);
 
         float grain = rand(uv * 500.0 + fract(uTime * 17.0));
-        color += (grain - 0.5) * (0.1 + gi * 0.12);
+        color += (grain - 0.5) * (0.1 + gi * 0.04);
 
         color = floor(color * 18.0) / 18.0;
 
@@ -364,13 +342,6 @@ export function musique(container) {
 
         float vig = smoothstep(1.5, 0.4, length((uv - 0.5) * vec2(uRes.x/uRes.y, 1.0)));
         color *= mix(0.15, 1.0, vig);
-
-        // Transition flash at peak
-        if (gi > 0.6) {
-          float flash = (gi - 0.6) / 0.4;
-          float fr = rand(vec2(floor(uTime * 25.0), uGlitchSeed));
-          color = mix(color, vec3(fr > 0.5 ? 1.0 : 0.0), flash * 0.35);
-        }
 
         gl_FragColor = vec4(color, 1.0);
       }
@@ -388,30 +359,29 @@ export function musique(container) {
 
   function drawGlitchOverlay(gi) {
     glitchCtx.clearRect(0, 0, glitchCanvas.width, glitchCanvas.height)
-    if (gi < 0.05) return
+    if (gi < 0.1) return
 
     const w = glitchCanvas.width
     const h = glitchCanvas.height
-    const numBars = Math.floor(gi * GLITCH_SLICES * 1.5)
+    const numBars = Math.floor(gi * GLITCH_SLICES * 0.4)
 
     for (let i = 0; i < numBars; i++) {
       const y = Math.random() * h
-      const barH = Math.random() * h * 0.04 + 1
-      const x = (Math.random() - 0.5) * w * 0.4 * gi
+      const barH = Math.random() * h * 0.02 + 1
+      const x = (Math.random() - 0.5) * w * 0.1 * gi
       const isTeal = Math.random() > 0.5
-      const alpha = Math.random() * 0.3 * gi
+      const alpha = Math.random() * 0.08 * gi
       glitchCtx.fillStyle = isTeal
         ? `rgba(0,229,204,${alpha})`
         : `rgba(139,92,246,${alpha})`
       glitchCtx.fillRect(x, y, w + Math.abs(x), barH)
     }
-
-    if (gi > 0.7) {
-      const flash = (gi - 0.7) / 0.3
-      glitchCtx.fillStyle = `rgba(255,255,255,${flash * 0.3})`
-      glitchCtx.fillRect(0, 0, w, h)
-    }
   }
+
+  // ─── LOOP FADE OVERLAY ─────────────────────────────
+  const loopFade = document.createElement('div')
+  loopFade.className = 'mq-loop-fade'
+  container.appendChild(loopFade)
 
   // ─── SCROLL CONTAINER + HTML OVERLAYS ──────────────
   const scrollWrap = document.createElement('div')
@@ -429,7 +399,6 @@ export function musique(container) {
   function makeSection(id, html) {
     const el = document.createElement('div')
     el.className = id.includes('link') || id === 'socials' ? 'mq-card-section' : 'mq-section'
-    if (id === 'musique') el.classList.add('mq-section--musique')
     el.dataset.id = id
     el.innerHTML = html
     container.appendChild(el)
@@ -438,15 +407,14 @@ export function musique(container) {
 
   const sections = {
     musique: makeSection('musique', `
-      <div class="mq-brand">musique.</div>
-      <div class="mq-sub">genreless</div>
+      <img class="mq-logo" src="/images/musique.png" alt="musique.">
     `),
     northstar: makeSection('northstar', `
       <img class="mq-logo" src="/images/northstar.png" alt="northstar">
       <div class="mq-logo-label" style="color:rgba(0,229,204,0.5);">the band</div>
     `),
     'northstar-links': makeSection('northstar-links', `
-      <div class="mq-section-title" style="color:rgba(0,229,204,0.7);">northstar</div>
+      <img class="mq-links-logo" src="/images/northstar.png" alt="northstar">
       <div class="mq-section-sub">listen now</div>
       <div class="mq-links-wrap" style="--accent:#00e5cc;--glow-shadow:rgba(0,229,204,0.15);--glow-bg:rgba(0,229,204,0.05);">
         ${['Spotify', 'Apple Music', 'YouTube', 'SoundCloud'].map(name => `
@@ -463,7 +431,7 @@ export function musique(container) {
       <div class="mq-logo-label" style="color:rgba(139,92,246,0.5);">solo</div>
     `),
     'leblanc-links': makeSection('leblanc-links', `
-      <div class="mq-section-title" style="color:rgba(139,92,246,0.7);">leblanc</div>
+      <img class="mq-links-logo" src="/images/leblanc.png" alt="leblanc">
       <div class="mq-section-sub">listen now</div>
       <div class="mq-links-wrap" style="--accent:#8b5cf6;--glow-shadow:rgba(139,92,246,0.15);--glow-bg:rgba(139,92,246,0.05);">
         ${['Spotify', 'Apple Music', 'YouTube', 'SoundCloud'].map(name => `
@@ -498,14 +466,14 @@ export function musique(container) {
     [0.00, 0.000],
     [0.10, 0.070],
     [0.17, 0.180],
-    [0.20, 0.220],   // northstar entry
+    [0.20, 0.220],
     [0.33, 0.220],   // northstar stall
-    [0.36, 0.280],   // northstar exit
+    [0.36, 0.280],
     [0.43, 0.370],
     [0.49, 0.480],
-    [0.52, 0.550],   // leblanc entry
+    [0.52, 0.550],
     [0.65, 0.550],   // leblanc stall
-    [0.68, 0.610],   // leblanc exit
+    [0.68, 0.610],
     [0.75, 0.700],
     [0.86, 0.870],
     [1.00, 1.000],
@@ -523,7 +491,7 @@ export function musique(container) {
     return 1.0
   }
 
-  // ─── GLITCH INTENSITY (bumps at stall boundaries) ─
+  // ─── GLITCH INTENSITY ─────────────────────────────
   function getGlitchIntensity(s) {
     const transitions = [
       { center: 0.19, width: 0.025 },
@@ -538,12 +506,17 @@ export function musique(container) {
         intensity = Math.max(intensity, Math.pow(1 - d, 0.6))
       }
     }
+    // Gentle loop glitch as we approach the end
+    if (s > 0.92) {
+      intensity = Math.max(intensity, (s - 0.92) / 0.08 * 0.4)
+    }
     return intensity
   }
 
   // ─── SCROLL STATE ──────────────────────────────────
   let scrollFraction = 0
   let targetScrollFraction = 0
+  let loopLock = false
   const fogColorTemp = new THREE.Color()
 
   function onScroll() {
@@ -582,6 +555,22 @@ export function musique(container) {
     scrollFraction += (targetScrollFraction - scrollFraction) * 0.04
     const cameraT = scrollToT(scrollFraction)
     const t = Math.max(0.001, Math.min(0.999, cameraT))
+
+    // ─── SEAMLESS LOOP ───
+    if (!loopLock && scrollFraction > 0.93) {
+      const fade = Math.min(1, (scrollFraction - 0.93) / 0.05)
+      loopFade.style.opacity = fade
+      if (fade >= 0.99) {
+        loopLock = true
+        container.scrollTop = 0
+        targetScrollFraction = 0
+        scrollFraction = 0.001
+        setTimeout(() => {
+          loopFade.style.opacity = 0
+          loopLock = false
+        }, 250)
+      }
+    }
 
     // Camera along curve
     const pos = curve.getPointAt(t)
@@ -630,12 +619,12 @@ export function musique(container) {
     const gi = getGlitchIntensity(scrollFraction)
     postMat.uniforms.uGlitchIntensity.value = gi
 
-    // CSS jitter on active section during glitch
-    if (gi > 0.01 && activeSection) {
+    // Gentle CSS jitter on active section during glitch
+    if (gi > 0.05 && activeSection) {
       const sect = sections[activeSection]
-      const rx = (Math.random() - 0.5) * 30 * gi
-      const ry = (Math.random() - 0.5) * 15 * gi
-      const skew = (Math.random() - 0.5) * 8 * gi
+      const rx = (Math.random() - 0.5) * 8 * gi
+      const ry = (Math.random() - 0.5) * 4 * gi
+      const skew = (Math.random() - 0.5) * 2 * gi
       sect.style.transform = `translate(${rx}px, ${ry}px) skewX(${skew}deg)`
     } else {
       for (const key in sections) {
